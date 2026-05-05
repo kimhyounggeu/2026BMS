@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>이의고등학교 BMS 캠프 신청</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #f3f4f6;
+        }
+
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6">
+
+    <div id="app-root" class="max-w-xl w-full"></div>
+
+    <script>
+        // ==========================================
+        // ⚙️ 관리자 설정 영역
+        // ==========================================
+        const CONFIG = {
+            // 새롭게 배포하여 얻은 구글 앱스 스크립트 URL을 아래에 붙여넣으세요!
+            GAS_URL: "여기에_새로운_구글_앱스_스크립트_URL을_붙여넣으세요", 
+            
+            START_TIME: "2026-05-05T10:00:00", 
+            END_TIME: "2026-05-05T18:00:00",   
+            MAX_CAPACITY: 30 // 모집 인원 (화면 표기용)
+        };
+        // ==========================================
+
+        let state = {
+            status: "LOADING", 
+            countdown: "",
+            errorMsg: "",
+            waitlistNum: 0 // 대기번호 저장용
+        };
+
+        let timerInterval = null;
+
+        function checkTime() {
+            const now = new Date().getTime();
+            const start = new Date(CONFIG.START_TIME).getTime();
+            const end = new Date(CONFIG.END_TIME).getTime();
+
+            if (now < start) {
+                const diff = start - now;
+                updateCountdown(diff);
+                return "BEFORE";
+            } else if (now >= start && now <= end) {
+                const diff = end - now;
+                updateCountdown(diff, true);
+                return "OPEN";
+            } else {
+                return "CLOSED";
+            }
+        }
+
+        function updateCountdown(ms, isOpen = false) {
+            const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+
+            let timeStr = "";
+            if (days > 0) timeStr += `${days}일 `;
+            timeStr += `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            state.countdown = timeStr;
+        }
+
+        function startApp() {
+            const currentStatus = checkTime();
+            state.status = currentStatus;
+            render();
+
+            // 1초마다 시간 업데이트 (버그 수정: 입력창 렌더링 방해 안 함)
+            timerInterval = setInterval(() => {
+                if (["SUBMITTING", "SUCCESS", "SUCCESS_WAITLIST", "CLOSED", "ERROR"].includes(state.status)) return;
+
+                const newStatus = checkTime();
+                
+                // 상태(오픈 전 -> 오픈)가 바뀔 때만 화면을 새로 고침
+                if (state.status !== newStatus) {
+                    state.status = newStatus;
+                    render();
+                } else {
+                    // 상태가 그대로면 시간 숫자만 살짝 변경 (입력창 보호)
+                    const countdownEl = document.getElementById('countdown-display');
+                    if (countdownEl) countdownEl.textContent = state.countdown;
+                }
+            }, 1000);
+        }
+
+        async function submitApplication(e) {
+            e.preventDefault();
+            
+            if (state.status !== "OPEN") {
+                alert("현재 신청 가능한 기간이 아닙니다.");
+                return;
+            }
+
+            const studentId = document.getElementById('studentId').value.trim();
+            const name = document.getElementById('studentName').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const program = document.getElementById('program').value; // 새로 추가된 프로그램
+            const schoolName = document.getElementById('schoolName').value.trim(); // 새로 추가된 학교명
+
+            if (!studentId || !name || !phone || !program || !schoolName) {
+                alert("모든 항목을 올바르게 입력해주세요.");
+                return;
+            }
+
+            state.status = "SUBMITTING";
+            render();
+
+            try {
+                // 프로그램 및 학교 파라미터 추가
+                const query = `studentId=${encodeURIComponent(studentId)}&name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}&program=${encodeURIComponent(program)}&school=${encodeURIComponent(schoolName)}`;
+                const response = await fetch(`${CONFIG.GAS_URL}?${query}`, {
+                    method: 'GET',
+                    redirect: 'follow' 
+                });
+
+                const resultText = await response.text();
+                
+                // 결과에 따른 상태 변경 (정상 접수 vs 대기 접수)
+                if (resultText.startsWith("SUCCESS_WAITLIST")) {
+                    state.waitlistNum = resultText.split(":")[1]; // 대기번호 추출
+                    state.status = "SUCCESS_WAITLIST";
+                } else if (resultText.includes("SUCCESS_NORMAL")) {
+                    state.status = "SUCCESS";
+                } else if (resultText.includes("TIME_ERROR")) {
+                    state.status = "CLOSED";
+                    state.errorMsg = "서버 기준 신청 기간이 종료되었습니다.";
+                } else {
+                    throw new Error("알 수 없는 응답: " + resultText);
+                }
+            } catch (error) {
+                console.error(error);
+                state.status = "ERROR";
+                state.errorMsg = "네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+            }
+            render();
+        }
+
+        function render() {
+            const root = document.getElementById('app-root');
+
+            const headerHtml = `
+                <div class="bg-blue-800 text-white p-8 rounded-t-2xl text-center">
+                    <h1 class="text-3xl font-extrabold tracking-tight mb-2">이의고등학교</h1>
+                    <h2 class="text-xl font-medium text-blue-100">BMS 캠프 참가 신청</h2>
+                </div>
+            `;
+
+            if (state.status === "LOADING") return;
+
+            if (state.status === "BEFORE") {
+                root.innerHTML = `
+                    <div class="bg-white rounded-2xl card-shadow overflow-hidden">
+                        ${headerHtml}
+                        <div class="p-10 text-center">
+                            <div class="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-800 mb-2">신청 시작 전입니다</h3>
+                            <p class="text-gray-500 mb-8">캠프 신청은 정해진 시간에 자동으로 오픈됩니다.</p>
+                            <div class="bg-gray-50 p-6 rounded-xl border border-gray-100">
+                                <p class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">오픈까지 남은 시간</p>
+                                <p id="countdown-display" class="text-4xl font-mono font-black text-blue-600">${state.countdown}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // 정상 접수 완료
+            if (state.status === "SUCCESS") {
+                root.innerHTML = `
+                    <div class="bg-white rounded-2xl card-shadow overflow-hidden">
+                        ${headerHtml}
+                        <div class="p-10 text-center">
+                            <div class="w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-800 mb-2">신청이 완료되었습니다!</h3>
+                            <p class="text-gray-500 mb-6">정상적으로 정원 내 접수가 완료되었습니다.</p>
+                            <div class="bg-gray-50 p-4 rounded-lg inline-block text-left text-sm text-gray-600">
+                                최종 선발 결과 및 안내 사항은<br>추후 별도로 공지될 예정입니다.
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // 정원 초과 -> 대기번호 발급
+            if (state.status === "SUCCESS_WAITLIST") {
+                root.innerHTML = `
+                    <div class="bg-white rounded-2xl card-shadow overflow-hidden">
+                        ${headerHtml}
+                        <div class="p-10 text-center">
+                            <div class="w-20 h-20 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-800 mb-2">대기자로 접수되었습니다</h3>
+                            <p class="text-gray-500 mb-6">정원이 초과되어 <span class="font-bold text-orange-600">대기 명단</span>으로 등록되었습니다.</p>
+                            
+                            <div class="bg-orange-50 p-6 rounded-xl border border-orange-100 mb-6">
+                                <p class="text-sm font-bold text-orange-800 mb-1">나의 대기 번호</p>
+                                <p class="text-4xl font-black text-orange-600">${state.waitlistNum} 번</p>
+                            </div>
+                            
+                            <p class="text-sm text-gray-400">기존 신청자 중 취소자가 발생할 경우<br>대기 순번에 따라 개별 연락을 드립니다.</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            if (state.status === "CLOSED" || state.status === "ERROR") {
+                root.innerHTML = `
+                    <div class="bg-white rounded-2xl card-shadow overflow-hidden">
+                        ${headerHtml}
+                        <div class="p-10 text-center">
+                            <p class="text-red-500 font-bold mb-4">${state.errorMsg || '신청이 마감되었습니다.'}</p>
+                            <button onclick="location.reload()" class="text-sm text-gray-500 underline">새로고침</button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // OPEN 상태 폼
+            const isSubmitting = state.status === "SUBMITTING";
+            
+            root.innerHTML = `
+                <div class="bg-white rounded-2xl card-shadow overflow-hidden">
+                    ${headerHtml}
+                    
+                    <div class="bg-blue-50 px-8 py-3 flex justify-between items-center border-b border-blue-100">
+                        <span class="text-sm font-bold text-blue-800">모집 정원: ${CONFIG.MAX_CAPACITY}명 (이후 대기접수)</span>
+                        <div class="text-right">
+                            <span class="text-[11px] font-bold text-gray-500 uppercase">남은 시간</span>
+                            <div id="countdown-display" class="text-blue-600 font-mono font-bold">${state.countdown}</div>
+                        </div>
+                    </div>
+
+                    <form onsubmit="submitApplication(event)" class="p-8">
+                        <div class="space-y-6">
+                            
+                            <!-- 추가된 희망 프로그램 선택란 -->
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">희망 프로그램</label>
+                                <select id="program" required class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 transition-colors" ${isSubmitting ? 'disabled' : ''}>
+                                    <option value="" disabled selected>프로그램을 선택해주세요</option>
+                                    <option value="간호학과">간호학과</option>
+                                <option value="임상병리학과">임상병리학과</option>
+                                <option value="의료 ai">의료 AI</option>
+                            </select>
+                        </div>
+
+                        <!-- 추가된 학교명 입력란 -->
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">학교명</label>
+                            <input type="text" id="schoolName" placeholder="예) 이의고등학교" required class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 transition-colors" ${isSubmitting ? 'disabled' : ''}>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">학번 (5자리)</label>
+                            <input type="text" id="studentId" placeholder="예) 10101" required pattern="[0-9]{5}" title="숫자 5자리로 입력해주세요" class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 transition-colors" ${isSubmitting ? 'disabled' : ''}>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">이름</label>
+                                <input type="text" id="studentName" placeholder="이름을 입력하세요" required class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 transition-colors" ${isSubmitting ? 'disabled' : ''}>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">연락처 (- 없이 숫자만)</label>
+                                <input type="tel" id="phone" placeholder="예) 01012345678" required pattern="[0-9]{10,11}" class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 transition-colors" ${isSubmitting ? 'disabled' : ''}>
+                            </div>
+                        </div>
+
+                        <div class="mt-10">
+                            <button type="submit" class="w-full flex justify-center items-center text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-bold rounded-xl text-lg px-5 py-4 text-center transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-lg hover:shadow-blue-200" ${isSubmitting ? 'disabled' : ''}>
+                                ${isSubmitting ? '<div class="spinner mr-3"></div> 접수 처리 중...' : '신청서 제출하기'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+        }
+
+        startApp();
+    </script>
+</body>
+</html>
