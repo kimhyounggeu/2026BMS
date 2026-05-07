@@ -279,11 +279,21 @@
                                 <label class="block text-sm font-bold text-gray-700 mb-2">희망 프로그램</label>
                                 <select id="program" required class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 transition-colors" ${isSubmitting ? 'disabled' : ''}>
                                     <option value="" disabled selected>프로그램을 선택해주세요</option>
-                                    <option value="간호학과">간호학과</option>
-                                <option value="임상병리학과">임상병리학과</option>
-                                <option value="의료 ai">의료 AI</option>
-                            </select>
-                        </div>
+                                    <optgroup label="간호학과">
+                                        <option value="[간호학과] 통합시뮬레이션실습실">통합시뮬레이션실습실</option>
+                                    </optgroup>
+                                    <optgroup label="임상병리학과">
+                                        <option value="[임상병리학과] 환경별 세균 분포비교">환경별 세균 분포비교</option>
+                                        <option value="[임상병리학과] DNA 추출 및 PCR·전기영동 기법">DNA 추출 및 PCR·전기영동 기법</option>
+                                        <option value="[임상병리학과] 혈액형 판별 및 혈액 성분 분석">혈액형 판별 및 혈액 성분 분석</option>
+                                    </optgroup>
+                                    <optgroup label="의료 AI">
+                                        <option value="[의료 AI] AI 기반 질병 예측 모델 제작">AI 기반 질병 예측 모델 제작</option>
+                                        <option value="[의료 AI] 보건 산업 빅데이터 분석">보건 산업 빅데이터 분석</option>
+                                        <option value="[의료 AI] AI 예측 결과 분석 비교 검증 활동">AI 예측 결과 분석 비교 검증 활동</option>
+                                    </optgroup>
+                                </select>
+                            </div>
 
                         <!-- 추가된 학교명 입력란 -->
                         <div>
