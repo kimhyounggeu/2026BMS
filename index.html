@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>이의고등학교 BMS 캠프 신청</title>
     
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
@@ -44,11 +43,11 @@
         // ==========================================
         const CONFIG = {
             // 새롭게 배포하여 얻은 구글 앱스 스크립트 URL을 아래에 붙여넣으세요!
-            GAS_URL: "https://script.google.com/macros/s/AKfycbzZFRo-lvrH-nLfaecFVWf-k5_TcZx3z1qjt98PberlhWVC6Uy-KsqXe3PE2JGmvcrP/exec", 
+            GAS_URL: "https://script.google.com/macros/s/AKfycbwcMciduo6Bjbpz1UzAe3qLEHu45MjfXRnFk7uKrRDwSVleUDiUUjNdhmnsyqveAXkm/exec", 
             
             START_TIME: "2026-05-05T10:00:00", 
-            END_TIME: "2026-06-30T18:00:00",   
-            MAX_CAPACITY: 30 // 모집 인원 (화면 표기용)
+            END_TIME: "2026-06-30T18:00:00"
+            // 프로그램별 개별 정원이 생겼으므로 전체 정원(MAX_CAPACITY)은 HTML에서 제외했습니다.
         };
         // ==========================================
 
@@ -56,7 +55,7 @@
             status: "LOADING", 
             countdown: "",
             errorMsg: "",
-            waitlistNum: 0 // 대기번호 저장용
+            waitlistNum: 0 
         };
 
         let timerInterval = null;
@@ -97,18 +96,15 @@
             state.status = currentStatus;
             render();
 
-            // 1초마다 시간 업데이트 (버그 수정: 입력창 렌더링 방해 안 함)
             timerInterval = setInterval(() => {
                 if (["SUBMITTING", "SUCCESS", "SUCCESS_WAITLIST", "CLOSED", "ERROR"].includes(state.status)) return;
 
                 const newStatus = checkTime();
                 
-                // 상태(오픈 전 -> 오픈)가 바뀔 때만 화면을 새로 고침
                 if (state.status !== newStatus) {
                     state.status = newStatus;
                     render();
                 } else {
-                    // 상태가 그대로면 시간 숫자만 살짝 변경 (입력창 보호)
                     const countdownEl = document.getElementById('countdown-display');
                     if (countdownEl) countdownEl.textContent = state.countdown;
                 }
@@ -126,8 +122,8 @@
             const studentId = document.getElementById('studentId').value.trim();
             const name = document.getElementById('studentName').value.trim();
             const phone = document.getElementById('phone').value.trim();
-            const program = document.getElementById('program').value; // 새로 추가된 프로그램
-            const schoolName = document.getElementById('schoolName').value.trim(); // 새로 추가된 학교명
+            const program = document.getElementById('program').value; 
+            const schoolName = document.getElementById('schoolName').value.trim(); 
 
             if (!studentId || !name || !phone || !program || !schoolName) {
                 alert("모든 항목을 올바르게 입력해주세요.");
@@ -138,7 +134,6 @@
             render();
 
             try {
-                // 프로그램 및 학교 파라미터 추가
                 const query = `studentId=${encodeURIComponent(studentId)}&name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}&program=${encodeURIComponent(program)}&school=${encodeURIComponent(schoolName)}`;
                 const response = await fetch(`${CONFIG.GAS_URL}?${query}`, {
                     method: 'GET',
@@ -147,9 +142,8 @@
 
                 const resultText = await response.text();
                 
-                // 결과에 따른 상태 변경 (정상 접수 vs 대기 접수)
                 if (resultText.startsWith("SUCCESS_WAITLIST")) {
-                    state.waitlistNum = resultText.split(":")[1]; // 대기번호 추출
+                    state.waitlistNum = resultText.split(":")[1]; 
                     state.status = "SUCCESS_WAITLIST";
                 } else if (resultText.includes("SUCCESS_NORMAL")) {
                     state.status = "SUCCESS";
@@ -199,7 +193,6 @@
                 return;
             }
 
-            // 정상 접수 완료
             if (state.status === "SUCCESS") {
                 root.innerHTML = `
                     <div class="bg-white rounded-2xl card-shadow overflow-hidden">
@@ -219,7 +212,6 @@
                 return;
             }
 
-            // 정원 초과 -> 대기번호 발급
             if (state.status === "SUCCESS_WAITLIST") {
                 root.innerHTML = `
                     <div class="bg-white rounded-2xl card-shadow overflow-hidden">
@@ -229,7 +221,7 @@
                                 <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             </div>
                             <h3 class="text-2xl font-bold text-gray-800 mb-2">대기자로 접수되었습니다</h3>
-                            <p class="text-gray-500 mb-6">정원이 초과되어 <span class="font-bold text-orange-600">대기 명단</span>으로 등록되었습니다.</p>
+                            <p class="text-gray-500 mb-6">해당 프로그램의 정원이 초과되어 <span class="font-bold text-orange-600">대기 명단</span>으로 등록되었습니다.</p>
                             
                             <div class="bg-orange-50 p-6 rounded-xl border border-orange-100 mb-6">
                                 <p class="text-sm font-bold text-orange-800 mb-1">나의 대기 번호</p>
@@ -256,7 +248,6 @@
                 return;
             }
 
-            // OPEN 상태 폼
             const isSubmitting = state.status === "SUBMITTING";
             
             root.innerHTML = `
@@ -264,7 +255,7 @@
                     ${headerHtml}
                     
                     <div class="bg-blue-50 px-8 py-3 flex justify-between items-center border-b border-blue-100">
-                        <span class="text-sm font-bold text-blue-800">모집 정원: ${CONFIG.MAX_CAPACITY}명 (이후 대기접수)</span>
+                        <span class="text-sm font-bold text-blue-800">모집 정원: 각 프로그램별 선착순 모집 (이후 대기접수)</span>
                         <div class="text-right">
                             <span class="text-[11px] font-bold text-gray-500 uppercase">남은 시간</span>
                             <div id="countdown-display" class="text-blue-600 font-mono font-bold">${state.countdown}</div>
@@ -274,28 +265,27 @@
                     <form onsubmit="submitApplication(event)" class="p-8">
                         <div class="space-y-6">
                             
-                            <!-- 추가된 희망 프로그램 선택란 -->
                             <div>
                                 <label class="block text-sm font-bold text-gray-700 mb-2">희망 프로그램</label>
                                 <select id="program" required class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 transition-colors" ${isSubmitting ? 'disabled' : ''}>
                                     <option value="" disabled selected>프로그램을 선택해주세요</option>
                                     <optgroup label="간호학과">
-                                        <option value="[간호학과] 통합시뮬레이션실습실">통합시뮬레이션실습실</option>
+                                        <option value="[간호학과] 통합시뮬레이션실습실">통합시뮬레이션실습실 (정원 5명)</option>
                                     </optgroup>
                                     <optgroup label="임상병리학과">
-                                        <option value="[임상병리학과] 환경별 세균 분포비교">환경별 세균 분포비교</option>
-                                        <option value="[임상병리학과] DNA 추출 및 PCR·전기영동 기법">DNA 추출 및 PCR·전기영동 기법</option>
-                                        <option value="[임상병리학과] 혈액형 판별 및 혈액 성분 분석">혈액형 판별 및 혈액 성분 분석</option>
+                                        <option value="[임상병리학과] 환경별 세균 분포비교">환경별 세균 분포비교 (정원 5명)</option>
+                                        <option value="[임상병리학과] DNA 추출 및 PCR·전기영동 기법">DNA 추출 및 PCR·전기영동 기법 (정원 6명)</option>
+                                        <option value="[임상병리학과] 혈액형 판별 및 혈액 성분 분석">혈액형 판별 및 혈액 성분 분석 (정원 5명)</option>
+                                        <option value="[임상병리학과] 근전도검사 체험">근전도검사 체험 (정원 5명)</option>
                                     </optgroup>
                                     <optgroup label="의료 AI">
-                                        <option value="[의료 AI] AI 기반 질병 예측 모델 제작">AI 기반 질병 예측 모델 제작</option>
-                                        <option value="[의료 AI] 보건 산업 빅데이터 분석">보건 산업 빅데이터 분석</option>
-                                        <option value="[의료 AI] AI 예측 결과 분석 비교 검증 활동">AI 예측 결과 분석 비교 검증 활동</option>
+                                        <option value="[의료 AI] AI 기반 질병 예측 모델 제작">AI 기반 질병 예측 모델 제작 (정원 5명)</option>
+                                        <option value="[의료 AI] 보건 산업 빅데이터 분석">보건 산업 빅데이터 분석 (정원 5명)</option>
+                                        <option value="[의료 AI] AI 예측 결과 분석 비교 검증 활동">AI 예측 결과 분석 비교 검증 활동 (정원 5명)</option>
                                     </optgroup>
                                 </select>
                             </div>
 
-                        <!-- 추가된 학교명 입력란 -->
                         <div>
                             <label class="block text-sm font-bold text-gray-700 mb-2">학교명</label>
                             <input type="text" id="schoolName" placeholder="예) 이의고등학교" required class="w-full bg-gray-50 border border-gray-300 text-gray-900 rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3.5 transition-colors" ${isSubmitting ? 'disabled' : ''}>
